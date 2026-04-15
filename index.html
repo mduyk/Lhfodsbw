@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SHOP TEST AUTO - SEPAY</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <style>
+        :root { --cyan: #00f2ff; --gold: #ffcc00; --bg: #0d0d16; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { background: #161625; padding: 25px; border-radius: 15px; border: 1px solid #333; width: 100%; max-width: 380px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        h2 { color: var(--cyan); text-align: center; margin-bottom: 20px; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #444; background: #000; color: #fff; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; margin-top: 10px; }
+        .btn-login { background: var(--cyan); color: #000; }
+        .btn-reg { background: #333; color: #ccc; font-size: 12px; }
+        .user-info { text-align: center; }
+        .balance { font-size: 28px; color: var(--gold); font-weight: bold; margin: 15px 0; }
+        .qr-area { background: #fff; padding: 10px; border-radius: 10px; margin-top: 15px; }
+        .memo-box { background: #000; color: var(--gold); padding: 10px; border-radius: 5px; font-family: monospace; margin: 10px 0; border: 1px dashed var(--gold); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="auth-box">
+        <h2 id="title">ĐĂNG NHẬP</h2>
+        <input type="text" id="username" placeholder="Tên tài khoản..." oninput="this.value = this.value.toLowerCase().replace(/\s/g, '')">
+        <input type="password" id="password" placeholder="Mật khẩu...">
+        <button class="btn-login" onclick="handleAuth('login')">VÀO SHOP</button>
+        <button class="btn-reg" id="toggle-btn" onclick="toggleMode()">Chưa có nick? Đăng ký ngay</button>
+    </div>
+
+    <div id="shop-box" style="display:none;" class="user-info">
+        <h3>Chào, <span id="user-name" style="color:var(--cyan)"></span></h3>
+        <div style="font-size: 13px; color: #888;">Số dư tài khoản:</div>
+        <div class="balance"><span id="user-balance">0</span> VNĐ</div>
+        
+        <div style="border-top: 1px solid #333; padding-top: 15px;">
+            <h4 style="margin: 0;">NẠP TIỀN TỰ ĐỘNG</h4>
+            <div class="memo-box">NỘI DUNG: <span id="memo-text"></span></div>
+            <div class="qr-area">
+                <img id="qr-code" src="" alt="QR Nạp tiền" style="width: 100%; max-width: 200px;">
+            </div>
+            <p style="font-size: 11px; color: #888; margin-top: 10px;">Bank đúng nội dung, tiền sẽ tự cộng sau 30s.</p>
+            <button onclick="location.reload()" style="background:none; color:#ff4444; font-size:12px;">Đăng xuất</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // CẤU HÌNH CHUẨN CỦA ÔNG
+    const firebaseConfig = {
+        apiKey: "AIzaSyBk6R1TDZeAxh37JQLgL_6Wl0v8m8Sg0",
+        authDomain: "shopctv-61f96.firebaseapp.com",
+        databaseURL: "https://shopctv-61f96-default-rtdb.asia-southeast1.firebasedatabase.app/",
+        projectId: "shopctv-61f96",
+        appId: "1:610663182342:web:83e255ec7921609395f190"
+    };
+
+    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    const db = firebase.database();
+    let isLoginMode = true;
+
+    function toggleMode() {
+        isLoginMode = !isLoginMode;
+        document.getElementById('title').innerText = isLoginMode ? "ĐĂNG NHẬP" : "ĐĂNG KÝ";
+        document.getElementById('toggle-btn').innerText = isLoginMode ? "Chưa có nick? Đăng ký ngay" : "Đã có nick? Đăng nhập";
+    }
+
+    function handleAuth(type) {
+        const u = document.getElementById('username').value.trim();
+        const p = document.getElementById('password').value.trim();
+        if(!u || !p) return alert("Nhập đủ tài khoản/mật khẩu!");
+
+        const userRef = db.ref('users_shop1/' + u);
+
+        if(!isLoginMode) { // CHẾ ĐỘ ĐĂNG KÝ
+            userRef.once('value', (s) => {
+                if(s.exists()) return alert("Tên này có người dùng rồi!");
+                userRef.set({ password: p, balance: 0 }).then(() => {
+                    alert("Đăng ký OK! Giờ đăng nhập đi ông.");
+                    toggleMode();
+                });
+            });
+        } else { // CHẾ ĐỘ ĐĂNG NHẬP
+            userRef.once('value', (s) => {
+                const data = s.val();
+                if(data && String(data.password) === String(p)) {
+                    startShop(u);
+                } else {
+                    alert("Sai thông tin rồi ông ơi!");
+                }
+            });
+        }
+    }
+
+    function startShop(user) {
+        document.getElementById('auth-box').style.display = 'none';
+        document.getElementById('shop-box').style.display = 'block';
+        document.getElementById('user-name').innerText = user;
+
+        const memo = "NAP " + user;
+        document.getElementById('memo-text').innerText = memo;
+        // Link QR MB Bank của ông
+        document.getElementById('qr-code').src = `https://img.vietqr.io/image/MB-0588807300000-compact2.png?amount=0&addInfo=${encodeURIComponent(memo)}`;
+
+        // Lắng nghe tiền thay đổi để tự nhảy số
+        db.ref('users_shop1/' + user + '/balance').on('value', (s) => {
+            document.getElementById('user-balance').innerText = (s.val() || 0).toLocaleString();
+        });
+    }
+</script>
+
+</body>
+</html>
